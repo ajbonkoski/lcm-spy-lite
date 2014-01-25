@@ -1,4 +1,4 @@
-lcm-spy-lite
+LCM-Spy-Lite
 ============
 
 LCM-Spy-Lite is a lightweight terminal-based implementation of LCM-Spy. This tool allows a developer to observe LCM (https://code.google.com/p/lcm) messages in transit for debugging purposes.
