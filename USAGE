@@ -1,0 +1,40 @@
+#####################################################################################
+#  LCM-SPY-LITE
+#  --------------------------------------------------------------
+#    Written by Anthony Bonkoski (anthony.bonkoski@skyspecs.com)
+#       Evolved from Ryan Morton's version for U of M EECS 498 W12
+#    Last update: Jan 24th, 2014
+#####################################################################################
+
+Cross-platform concerns:
+  1) Only tested/used on linux systems (both x86/x64 and ARM using GCC)
+  2) This library relies heavily on 'dlsym()' to load dynamic libraries.
+  3) Stores debugging temp files under /tmp
+
+Dependencies:
+  lcm-spy-lite has only LCM as a dependency.
+  However, it uses some very new lcm features added after the 1.0.0 release
+  For compatibility, you must install LCM directly from the SVN truck with revision 739 or newer
+
+Building:
+  build: 'make'
+  clean: 'make clean'
+
+Building lcmtypes:
+  1) LCM types should be generated with 'typeinfo', that is using the new '--c-typeinfo' flag
+      Example: 'lcm-gen --c-typeinfo example_t.lcm'
+  2) After compilation, a shared object (.so file) should be built instead of a static library (.a file)
+  LCM types should be compiled into a dynamic library (shared object: .so file)
+
+Configuring lcm-spy-lite:
+  lcm-spy-lite uses the 'LCM_SPY_LITE_PATH' evironment variable to find these .so files
+  This variable works similar to the PATH variable (a comma separated list)
+  Example:
+     'export LCM_SPY_LITE_PATH=/my/path/to/types/liblcmtypes.so:/another/path/to/types/liblcmtypes.so'
+
+Debuging:
+  lcm-spy-lite displays debugging information if started with the '--debug' flag
+  If lcm-spy-lite is not loading types as expected, take a look at this debug output
+  Also, a debugging log file may be found in /tmp/spy-lite-debug.log
+
+Enjoy!

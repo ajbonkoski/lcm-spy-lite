@@ -1,0 +1,11 @@
+## temp files
+*~
+\#*#
+.#*
+
+## build files
+*.o
+
+## special directories
+bin/*
+obj/*
