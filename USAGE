@@ -31,6 +31,8 @@ Configuring lcm-spy-lite:
   This variable works similar to the PATH variable (a comma separated list)
   Example:
      'export LCM_SPY_LITE_PATH=/my/path/to/types/liblcmtypes.so:/another/path/to/types/liblcmtypes.so'
+  Limitation:
+     LCM_SPY_LITE_PATH only accepts a single .so currently
 
 Debuging:
   lcm-spy-lite displays debugging information if started with the '--debug' flag
