@@ -24,14 +24,14 @@ Building lcmtypes:
   1) LCM types should be generated with 'typeinfo', that is using the new '--c-typeinfo' flag
       Example: 'lcm-gen --c-typeinfo example_t.lcm'
   2) After compilation, a shared object (.so file) should be built instead of a static library (.a file)
-  LCM types should be compiled into a dynamic library (shared object: .so file)
+     The lcm types need to be dynamically loaded.
 
 Configuring lcm-spy-lite:
   lcm-spy-lite uses the 'LCM_SPY_LITE_PATH' evironment variable to find these .so files
-  This variable works similar to the PATH variable (a comma separated list)
+  This variable works similar to the PATH variable (a colon separated list)
   Example:
      'export LCM_SPY_LITE_PATH=/my/path/to/types/liblcmtypes.so:/another/path/to/types/liblcmtypes.so'
-  Limitation:
+  Limitations:
      LCM_SPY_LITE_PATH only accepts a single .so currently
 
 Debuging:
