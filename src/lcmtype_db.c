@@ -12,6 +12,46 @@
 #define MAXBUFSZ 256
 #define DEBUG 1
 
+typedef struct
+{
+    char *paths;
+    char *next;
+
+} path_iter_t;
+
+static path_iter_t *path_iter_create(const char *paths)
+{
+    path_iter_t *this = calloc(1, sizeof(path_iter_t));
+    this->paths = strdup(paths);
+    this->next = this->paths;
+    return this;
+}
+
+const char *path_iter_next(path_iter_t *this)
+{
+    const char *ret = this->next;
+    if(ret == NULL)
+        return NULL;
+
+    char *ptr = this->next;
+    for(; *ptr && *ptr != ':'; ++ptr);
+
+    if(*ptr == ':') {
+        *ptr = '\0';
+        this->next = ptr + 1;
+    } else {
+        this->next = NULL;
+    }
+
+    return ret;
+}
+
+static void path_iter_destroy(path_iter_t *this)
+{
+    free(this->paths);
+    free(this);
+}
+
 struct lcmtype_db
 {
     void *lib;
@@ -50,11 +90,6 @@ static void *open_lib(const char *libname)
     return NULL;
 }
 
-static void close_lib(void *lib)
-{
-    dlclose(lib);
-}
-
 static const char *lcmtype_functions[] =
 {
     "_t_copy",
@@ -72,6 +107,18 @@ static const char *lcmtype_functions[] =
     "_t_subscription_set_queue_capacity",
     "_t_unsubscribe"
 };
+
+static void print_missing_methods(int mask)
+{
+    printf("  Missing methods:\n");
+
+    int count = sizeof(lcmtype_functions) / sizeof(const char *);
+    for(int i = 0; i < count; i++) {
+        if(!(mask&(1<<i))) {
+            printf("    %s\n", lcmtype_functions[i]);
+        }
+    }
+}
 
 // find all lcm types by post-processing the symbols
 // extracted from the ELF file's symbol table
@@ -167,6 +214,7 @@ static char **find_all_typenames(const char *libname)
             names[j++] = names[i];
         } else {
             if(DEBUG) printf("rejecting type '%s' with mask 0x%x\n", names[i], masks[i]);
+            if(DEBUG) print_missing_methods(masks[i]);
         }
     }
 
@@ -181,19 +229,16 @@ static char **find_all_typenames(const char *libname)
     return names;
 }
 
-static GHashTable *load_types(const char *libname, void *lib)
+static int load_types(const char *libname, void *lib, GHashTable *types)
 {
     char **names = find_all_typenames(libname);
     if(names == NULL) {
         fprintf(stderr, "ERR: failed to find lcm typenames in %s\n", libname);
-        goto fail;
+        return 1;
     }
 
     // fetch each lcmtype_methods_t*, compute each hash, and add to hashtable
     int count = 0;
-    GHashTable *tbl = g_hash_table_new_full(
-           g_int64_hash, g_int64_equal,
-           NULL, (GDestroyNotify) lcmtype_metadata_destroy);
     for(char **ptr = names; *ptr; ptr++) {
         if(DEBUG) printf("Attempting load for type %s\n", *ptr);
 
@@ -218,7 +263,7 @@ static GHashTable *load_types(const char *libname, void *lib)
         metadata->typename = *ptr; /* metadata->typename now "owns" the string */
         metadata->typeinfo = typeinfo;
 
-        g_hash_table_insert(tbl, &metadata->hash, metadata);
+        g_hash_table_insert(types, &metadata->hash, metadata);
 
         if(DEBUG) printf("Success loading type %s (0x%"PRIx64")\n", *ptr, msghash);
         count++;
@@ -229,10 +274,7 @@ static GHashTable *load_types(const char *libname, void *lib)
     // cleanup
     free(names);
 
-    return tbl;
-
- fail:
-    return NULL;
+    return 0;
 }
 
 void destroy_types(GHashTable *types)
@@ -240,19 +282,33 @@ void destroy_types(GHashTable *types)
     g_hash_table_destroy(types);
 }
 
-lcmtype_db_t *lcmtype_db_create(const char *libname)
+lcmtype_db_t *lcmtype_db_create(const char *paths)
 {
     lcmtype_db_t *this = calloc(1, sizeof(lcmtype_db_t));
-    this->lib = open_lib(libname);
-    if(this->lib == NULL) goto fail;
-    this->types = load_types(libname, this->lib);
-    if(this->types == NULL) goto fail;
 
+    this->types = g_hash_table_new_full(
+           g_int64_hash, g_int64_equal,
+           NULL, (GDestroyNotify) lcmtype_metadata_destroy);
+
+    path_iter_t *pi = path_iter_create(paths);
+
+    const char *libname;
+    while((libname=path_iter_next(pi))) {
+        printf("Loading types from '%s'\n", libname);
+        void *lib = open_lib(libname);
+        if(lib == NULL) {
+            fprintf(stderr, "Err: failed to open '%s'\n", libname);
+            continue;
+        }
+        int ret = load_types(libname, lib, this->types);
+        if(ret != 0) {
+            fprintf(stderr, "Err: failed to load types from '%s'\n", libname);
+            continue;
+        }
+    }
+
+    path_iter_destroy(pi);
     return this;
-
- fail:
-    free(this);
-    return NULL;
 }
 
 void lcmtype_db_destroy(lcmtype_db_t *this)
@@ -260,7 +316,6 @@ void lcmtype_db_destroy(lcmtype_db_t *this)
     if(this == NULL)
         return;
 
-    close_lib(this->lib);
     destroy_types(this->types);
 }
 
