@@ -18,7 +18,7 @@ typedef struct
 
 typedef struct lcmtype_db lcmtype_db_t;
 
-lcmtype_db_t *lcmtype_db_create(const char *paths);
+lcmtype_db_t *lcmtype_db_create(const char *paths, int debug);
 void lcmtype_db_destroy(lcmtype_db_t *this);
 
 // returns NULL when "not found"

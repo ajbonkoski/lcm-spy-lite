@@ -10,7 +10,8 @@
 #include <glib.h>
 
 #define MAXBUFSZ 256
-#define DEBUG 1
+
+static int DEBUG = 0;
 
 typedef struct
 {
@@ -269,7 +270,7 @@ static int load_types(const char *libname, void *lib, GHashTable *types)
         count++;
     }
 
-    printf("Loaded %d lcmtypes from %s\n", count, libname);
+    if(DEBUG) printf("Loaded %d lcmtypes from %s\n", count, libname);
 
     // cleanup
     free(names);
@@ -282,8 +283,11 @@ void destroy_types(GHashTable *types)
     g_hash_table_destroy(types);
 }
 
-lcmtype_db_t *lcmtype_db_create(const char *paths)
+lcmtype_db_t *lcmtype_db_create(const char *paths, int debug)
 {
+    /* TODO: put this in the lcmtype_db_t struct */
+    DEBUG = debug;
+
     lcmtype_db_t *this = calloc(1, sizeof(lcmtype_db_t));
 
     this->types = g_hash_table_new_full(
@@ -294,7 +298,7 @@ lcmtype_db_t *lcmtype_db_create(const char *paths)
 
     const char *libname;
     while((libname=path_iter_next(pi))) {
-        printf("Loading types from '%s'\n", libname);
+        if(DEBUG) printf("Loading types from '%s'\n", libname);
         void *lib = open_lib(libname);
         if(lib == NULL) {
             fprintf(stderr, "Err: failed to open '%s'\n", libname);

@@ -563,7 +563,8 @@ int main(int argc, char *argv[])
 
     // get the lcmtypes .so from LCM_SPY_LITE_PATH
     const char *lcm_spy_lite_path = getenv("LCM_SPY_LITE_PATH");
-    printf("lcm_spy_lite_path='%s'\n", lcm_spy_lite_path);
+    if(is_debug_mode)
+        printf("lcm_spy_lite_path='%s'\n", lcm_spy_lite_path);
     if(lcm_spy_lite_path == NULL) {
         fprintf(stderr, "ERR: invalid $LCM_SPY_LITE_PATH\n");
         return 1;
@@ -573,7 +574,7 @@ int main(int argc, char *argv[])
         .names_array = g_array_new(TRUE, TRUE, sizeof(char *)),
         .minfo_hashtbl = g_hash_table_new_full(g_str_hash, g_str_equal,
                        (GDestroyNotify) free, (GDestroyNotify) msg_info_destroy),
-        .type_db = lcmtype_db_create(lcm_spy_lite_path),
+        .type_db = lcmtype_db_create(lcm_spy_lite_path, is_debug_mode),
         .display_hz = 10,
         .mode = MODE_OVERVIEW,
         .is_selecting = 0,
