@@ -119,7 +119,7 @@ static void _msg_info_ensure_hash(msg_info_t *this, int64_t hash)
     }
 
     this->hash = hash;
-    this->metadata = lcmtype_db_get_metadata(this->spy->type_db, hash);
+    this->metadata = lcmtype_db_get_using_hash(this->spy->type_db, hash);
     if(this->metadata == NULL) {
         DEBUG(1, "WRN: failed to find lcmtype for hash: 0x%"PRIx64"\n", hash);
         return;
@@ -386,7 +386,7 @@ static void display_decode(spyinfo_t *spy)
     printf("   ----------------------------------------------------------------\n");
 
     if(minfo->last_msg != NULL)
-        msg_display(minfo->metadata, minfo->last_msg);
+        msg_display(spy->type_db, minfo->metadata, minfo->last_msg);
 }
 
 void *print_thread_func(void *arg)

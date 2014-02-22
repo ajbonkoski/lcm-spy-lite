@@ -22,7 +22,8 @@ lcmtype_db_t *lcmtype_db_create(const char *paths, int debug);
 void lcmtype_db_destroy(lcmtype_db_t *this);
 
 // returns NULL when "not found"
-const lcmtype_metadata_t *lcmtype_db_get_metadata(lcmtype_db_t *this, int64_t hash);
+const lcmtype_metadata_t *lcmtype_db_get_using_hash(lcmtype_db_t *this, int64_t hash);
+const lcmtype_metadata_t *lcmtype_db_get_using_name(lcmtype_db_t *this, const char *name);
 
 #ifdef __cplusplus
 }

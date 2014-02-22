@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-void msg_display(const lcmtype_metadata_t *metadata, void *msg);
+void msg_display(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg);
 
 #ifdef __cplusplus
 }

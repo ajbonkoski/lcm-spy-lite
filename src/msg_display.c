@@ -3,12 +3,20 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+static void _msg_display_internal(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg, int indent);
+
 static inline int is_ascii(int8_t c)
 {
     return (32 <= c && c <= 126);
 }
 
-static void print_value_scalar(lcm_field_t *field, void *data)
+static inline void do_indent(int indent)
+{
+    for(int i = 0; i <= indent; i++)
+        printf("    ");
+}
+
+static void print_value_scalar(lcmtype_db_t *db, lcm_field_t *field, void *data, int indent)
 {
 
     switch(field->type) {
@@ -50,9 +58,18 @@ static void print_value_scalar(lcm_field_t *field, void *data)
             printf("%s", (*(int8_t*) data) == 1 ? "true" : "false");
             break;
 
-        case LCM_FIELD_USER_TYPE:
-            printf("<USER>");
+        case LCM_FIELD_USER_TYPE: {
+            const lcmtype_metadata_t *md = lcmtype_db_get_using_name(db, field->typestr);
+            if(md == NULL) {
+                printf("<unknown-user-type>");
+            } else {
+                printf("<USER>");
+                /* printf("\n"); */
+                /* _msg_display_internal(db, md, data, indent+1); */
+                /* do_indent(indent); */
+            }
             break;
+        }
 
         default:
             printf("???");
@@ -80,15 +97,15 @@ static size_t typesize(lcm_field_type_t type)
     }
 }
 
-static void print_value_array(lcm_field_t *field, void *data)
+static void print_value_array(lcmtype_db_t *db, lcm_field_t *field, void *data, int indent)
 {
     if(field->num_dim == 1) {
-        printf("[ ");
+        printf("[");
         int len = field->dim_size[0];
         size_t elt_size = typesize(field->type);
         void *p = (!field->dim_is_variable[0]) ? field->data : *(void **) field->data;
         for(int i = 0; i < len; i++) {
-            print_value_scalar(field, p);
+            print_value_scalar(db, field, p, indent);
             if(i+1 != len)
                 printf(", ");
             p = (void *)((uint8_t *) p + elt_size);
@@ -99,7 +116,7 @@ static void print_value_array(lcm_field_t *field, void *data)
     }
 }
 
-void msg_display(const lcmtype_metadata_t *metadata, void *msg)
+static void _msg_display_internal(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg, int indent)
 {
     const lcm_type_info_t *typeinfo = metadata->typeinfo;
     lcm_field_t field;
@@ -107,16 +124,20 @@ void msg_display(const lcmtype_metadata_t *metadata, void *msg)
 
     for(int i = 0; i < num_fields; i++) {
         typeinfo->get_field(msg, i, &field);
-        printf("     %-15s %-15s ", field.name, field.typestr);
+
+        do_indent(indent);
+        printf("%-15s %-15s ", field.name, field.typestr);
 
         if(field.num_dim == 0)
-            print_value_scalar(&field, field.data);
+            print_value_scalar(db, &field, field.data, indent);
         else
-            print_value_array(&field, field.data);
+            print_value_array(db, &field, field.data, indent);
 
         printf("\n");
     }
+}
 
-    printf("\n");
-
+void msg_display(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg)
+{
+    _msg_display_internal(db, metadata, msg, 0);
 }

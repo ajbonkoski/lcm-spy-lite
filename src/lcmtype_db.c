@@ -56,7 +56,8 @@ static void path_iter_destroy(path_iter_t *this)
 struct lcmtype_db
 {
     void *lib;
-    GHashTable *types;
+    GHashTable *hash_to_type;
+    GHashTable *name_to_hash;
 };
 
 void lcmtype_metadata_destroy(lcmtype_metadata_t *md)
@@ -230,7 +231,8 @@ static char **find_all_typenames(const char *libname)
     return names;
 }
 
-static int load_types(const char *libname, void *lib, GHashTable *types)
+static int load_types(const char *libname, void *lib,
+                      GHashTable *hash_to_type, GHashTable *name_to_hash)
 {
     char **names = find_all_typenames(libname);
     if(names == NULL) {
@@ -264,7 +266,8 @@ static int load_types(const char *libname, void *lib, GHashTable *types)
         metadata->typename = *ptr; /* metadata->typename now "owns" the string */
         metadata->typeinfo = typeinfo;
 
-        g_hash_table_insert(types, &metadata->hash, metadata);
+        g_hash_table_insert(hash_to_type, &metadata->hash, metadata);
+        g_hash_table_insert(name_to_hash, metadata->typename, &metadata->hash);
 
         if(DEBUG) printf("Success loading type %s (0x%"PRIx64")\n", *ptr, msghash);
         count++;
@@ -290,9 +293,13 @@ lcmtype_db_t *lcmtype_db_create(const char *paths, int debug)
 
     lcmtype_db_t *this = calloc(1, sizeof(lcmtype_db_t));
 
-    this->types = g_hash_table_new_full(
+    this->hash_to_type = g_hash_table_new_full(
            g_int64_hash, g_int64_equal,
            NULL, (GDestroyNotify) lcmtype_metadata_destroy);
+
+    this->name_to_hash = g_hash_table_new_full(
+           g_str_hash, g_str_equal,
+           NULL, NULL);
 
     path_iter_t *pi = path_iter_create(paths);
 
@@ -304,7 +311,9 @@ lcmtype_db_t *lcmtype_db_create(const char *paths, int debug)
             fprintf(stderr, "Err: failed to open '%s'\n", libname);
             continue;
         }
-        int ret = load_types(libname, lib, this->types);
+        int ret = load_types(libname, lib,
+                             this->hash_to_type,
+                             this->name_to_hash);
         if(ret != 0) {
             fprintf(stderr, "Err: failed to load types from '%s'\n", libname);
             continue;
@@ -320,11 +329,20 @@ void lcmtype_db_destroy(lcmtype_db_t *this)
     if(this == NULL)
         return;
 
-    destroy_types(this->types);
+    destroy_types(this->hash_to_type);
+    destroy_types(this->name_to_hash);
 }
 
 
-const lcmtype_metadata_t *lcmtype_db_get_metadata(lcmtype_db_t *this, int64_t hash)
+const lcmtype_metadata_t *lcmtype_db_get_using_hash(lcmtype_db_t *this, int64_t hash)
 {
-    return g_hash_table_lookup(this->types, &hash);
+    return g_hash_table_lookup(this->hash_to_type, &hash);
+}
+
+const lcmtype_metadata_t *lcmtype_db_get_using_name(lcmtype_db_t *this, const char *name)
+{
+    int64_t *hash = g_hash_table_lookup(this->name_to_hash, name);
+    if(hash == NULL)
+        return NULL;
+    return g_hash_table_lookup(this->hash_to_type, hash);
 }
