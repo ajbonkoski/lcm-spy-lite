@@ -379,9 +379,13 @@ void *keyboard_thread_func(void *arg)
 ////////////////////////// Helper Functions //////////////////////////
 //////////////////////////////////////////////////////////////////////
 
-// XXX temporary until ncurses installed on pandas
-void clearscreen() {
-    system( "clear" );
+void clearscreen()
+{
+    // clear
+    printf("\033[2J");
+
+    // move cursor to (0, 0)
+    printf("\033[0;0H");
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -474,6 +478,8 @@ void *print_thread_func(void *arg)
         }
         pthread_mutex_unlock(&spy->mutex);
 
+        // flush the stdout buffer (required since we use full buffering)
+        fflush(stdout);
     }
 
     DEBUG(1, "INFO: %s: Ending\n", "print_thread");
@@ -642,6 +648,9 @@ int main(int argc, char *argv[])
     signal(SIGINT, sighandler);
     signal(SIGQUIT, sighandler);
     signal(SIGTERM, sighandler);
+
+    // configure stdout buffering: use FULL buffering to avoid flickering
+    setvbuf(stdout, NULL, _IOFBF, 2048);
 
     // start threads
     pthread_mutex_init(&spy.mutex, NULL);
