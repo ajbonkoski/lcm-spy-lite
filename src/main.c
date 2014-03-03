@@ -77,6 +77,7 @@ struct msg_info
     spyinfo_t *spy;
     int64_t hash;
     const lcmtype_metadata_t *metadata;
+    msg_display_state_t disp_state;
     void *last_msg;
 
     uint64_t num_msgs;
@@ -94,6 +95,7 @@ static msg_info_t *msg_info_create(spyinfo_t *spy, const char *channel)
     this->spy = spy;
     this->hash = 0;
     this->metadata = NULL;
+    this->disp_state.cur_depth = 0;
     this->last_msg = NULL;
 
     this->num_msgs = 0;
@@ -239,6 +241,16 @@ static float msg_info_get_hz(msg_info_t *this)
     return (float) sz / ((float) dt / 1000000.0);
 }
 
+static msg_info_t *get_current_msg_info(spyinfo_t *spy, const char **channel)
+{
+    const char *ch = g_array_index(spy->names_array, const char *, spy->decode_index);
+    assert(ch != NULL);
+    msg_info_t *minfo = (msg_info_t *) g_hash_table_lookup(spy->minfo_hashtbl, ch);
+    assert(minfo != NULL);
+    if(channel != NULL) *channel = ch;
+    return minfo;
+}
+
 static void msg_info_destroy(msg_info_t *this)
 {
     free(this);
@@ -247,6 +259,66 @@ static void msg_info_destroy(msg_info_t *this)
 static int is_valid_channel_num(spyinfo_t *spy, int index)
 {
     return (0 <= index && index < spy->names_array->len);
+}
+
+static void keyboard_handle_overview(spyinfo_t *spy, char ch)
+{
+    if(ch == '-') {
+        spy->is_selecting = 1; /* true */
+        spy->decode_index = -1;
+    } else if('0' <= ch && ch <= '9') {
+        // shortcut for single digit channels
+        if(!spy->is_selecting) {
+            spy->decode_index = ch - '0';
+            if(is_valid_channel_num(spy, spy->decode_index))
+                spy->mode = MODE_DECODE;
+        } else {
+            if(spy->decode_index == -1) {
+                spy->decode_index = ch - '0';
+            } else if(spy->decode_index < 10000) {
+                spy->decode_index *= 10;
+                spy->decode_index += (ch - '0');
+            }
+        }
+    } else if(ch == '\n') {
+        if(spy->is_selecting) {
+            if(is_valid_channel_num(spy, spy->decode_index))
+                spy->mode = MODE_DECODE;
+            spy->is_selecting = 0; /* false */
+        }
+    } else if(ch == '\b' || ch == DEL_KEY) {
+        if(spy->is_selecting) {
+            if(spy->decode_index < 10)
+                spy->decode_index = -1;
+            else
+                spy->decode_index /= 10;
+        }
+    } else {
+        DEBUG(1, "INFO: unrecognized input: '%c' (0x%2x)\n", ch, ch);
+    }
+}
+
+static void keyboard_handle_decode(spyinfo_t *spy, char ch)
+{
+    msg_info_t *minfo = get_current_msg_info(spy, NULL);
+    msg_display_state_t *ds = &minfo->disp_state;
+
+    if(ch == ESCAPE_KEY) {
+        if(ds->cur_depth > 0)
+            ds->cur_depth--;
+        else
+            spy->mode = MODE_OVERVIEW;
+    } else if('0' <= ch && ch <= '9') {
+        // if number is pressed, set and increase sub-msg decoding depth
+        if(ds->cur_depth < MSG_DISPLAY_RECUR_MAX) {
+            ds->recur_table[ds->cur_depth++] = (ch - '0');
+        } else {
+            DEBUG(1, "INFO: cannot recurse further: reached maximum depth of %d\n",
+                  MSG_DISPLAY_RECUR_MAX);
+        }
+    } else {
+        DEBUG(1, "INFO: unrecognized input: '%c' (0x%2x)\n", ch, ch);
+    }
 }
 
 void *keyboard_thread_func(void *arg)
@@ -284,40 +356,11 @@ void *keyboard_thread_func(void *arg)
 
             pthread_mutex_lock(&spy->mutex);
             {
-                if(ch == ESCAPE_KEY) {
-                    spy->mode = MODE_OVERVIEW;
-                } else if(ch == '-') {
-                    spy->is_selecting = 1; /* true */
-                    spy->decode_index = -1;
-                } else if('0' <= ch && ch <= '9') {
-                    // shortcut for single digit channels
-                    if(!spy->is_selecting) {
-                        spy->decode_index = ch - '0';
-                        if(is_valid_channel_num(spy, spy->decode_index))
-                            spy->mode = MODE_DECODE;
-                    } else {
-                        if(spy->decode_index == -1) {
-                            spy->decode_index = ch - '0';
-                        } else if(spy->decode_index < 10000) {
-                            spy->decode_index *= 10;
-                            spy->decode_index += (ch - '0');
-                        }
-                    }
-                } else if(ch == '\n') {
-                    if(spy->is_selecting) {
-                        if(is_valid_channel_num(spy, spy->decode_index))
-                            spy->mode = MODE_DECODE;
-                        spy->is_selecting = 0; /* false */
-                    }
-                } else if(ch == '\b' || ch == DEL_KEY) {
-                    if(spy->is_selecting) {
-                        if(spy->decode_index < 10)
-                            spy->decode_index = -1;
-                        else
-                            spy->decode_index /= 10;
-                    }
-                } else {
-                    DEBUG(1, "INFO: unrecognized input: '%c' (0x%2x)\n", ch, ch);
+                switch(spy->mode) {
+                    case MODE_OVERVIEW: keyboard_handle_overview(spy, ch); break;
+                    case MODE_DECODE:   keyboard_handle_decode(spy, ch);  break;
+                    default:
+                        DEBUG(1, "INFO: unrecognized keyboard mode: %d\n", spy->mode);
                 }
             }
             pthread_mutex_unlock(&spy->mutex);
@@ -375,18 +418,14 @@ static void display_overview(spyinfo_t *spy)
 
 static void display_decode(spyinfo_t *spy)
 {
-    const char *channel = g_array_index(spy->names_array, const char *, spy->decode_index);
-    assert(channel != NULL);
-    msg_info_t *minfo = (msg_info_t *) g_hash_table_lookup(spy->minfo_hashtbl, channel);
-    assert(minfo != NULL);
-
+    const char *channel;
+    msg_info_t *minfo = get_current_msg_info(spy, &channel);
     const char *typename = (minfo->metadata != NULL) ? minfo->metadata->typename : NULL;
     int64_t hash = (minfo->metadata != NULL) ? minfo->metadata->typeinfo->get_hash() : 0;
     printf("         Decoding %s (%s) %"PRIu64":\n", channel, typename, (uint64_t) hash);
-    printf("   ----------------------------------------------------------------\n");
 
     if(minfo->last_msg != NULL)
-        msg_display(spy->type_db, minfo->metadata, minfo->last_msg);
+        msg_display(spy->type_db, minfo->metadata, minfo->last_msg, &minfo->disp_state);
 }
 
 void *print_thread_func(void *arg)
