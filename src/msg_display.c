@@ -202,19 +202,15 @@ void msg_display(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg
 
         if(inside_array) {
 
-            // If its an array, there are a couple of options:
-            //   the array is laid out differently in memory depending on whether
-            //   its a fixed-size or variable-size array
+            // if its a variable array, we need to dereference the field
+            // to get the actual array address
+            if(field.dim_is_variable[0])
+                msg = *(void **)msg;
 
-            if(!field.dim_is_variable[0]) {
-                size_t typesz = metadata->typeinfo->struct_size();
-                msg += typesz * index;
-            } else {
-                // a variable-size array is simply an array of pointers
-                // thus, to get the correct USER data ptr, we must index pointers
-                // and then derefernce it... this leads to the following mess:
-                msg = *(void **)(msg + index * sizeof(void *));
-            }
+            // compute the address of this index
+            size_t typesz = metadata->typeinfo->struct_size();
+            msg += typesz * index;
+
             strnfmtappend(traversal, TRAVERSAL_BUFSZ, &traversal_used,
                           "[%d]", index);
         }
