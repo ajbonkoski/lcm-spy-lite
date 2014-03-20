@@ -45,6 +45,8 @@ static void DEBUG(int level, const char *fmt, ...)
 //////////////////////////////// Structs /////////////////////////////
 //////////////////////////////////////////////////////////////////////
 
+typedef struct msg_info msg_info_t;
+
 enum display_mode { MODE_OVERVIEW, MODE_DECODE };
 typedef struct spyinfo spyinfo_t;
 struct spyinfo
@@ -57,14 +59,16 @@ struct spyinfo
 
     enum display_mode mode;
     int is_selecting;
+
     int decode_index;
+    msg_info_t *decode_msg_info;
+    const char *decode_msg_channel;
 };
 
 
 #define QUEUE_PERIOD (4*1000*1000)   /* queue up to 4 sec of utimes */
 #define QUEUE_SIZE   (400)           /* hold up to 400 utimes */
 
-typedef struct msg_info msg_info_t;
 struct msg_info
 {
     const char *channel;
@@ -270,8 +274,10 @@ static void keyboard_handle_overview(spyinfo_t *spy, char ch)
         // shortcut for single digit channels
         if(!spy->is_selecting) {
             spy->decode_index = ch - '0';
-            if(is_valid_channel_num(spy, spy->decode_index))
+            if(is_valid_channel_num(spy, spy->decode_index)) {
+                spy->decode_msg_info = get_current_msg_info(spy, &spy->decode_msg_channel);
                 spy->mode = MODE_DECODE;
+            }
         } else {
             if(spy->decode_index == -1) {
                 spy->decode_index = ch - '0';
@@ -282,8 +288,10 @@ static void keyboard_handle_overview(spyinfo_t *spy, char ch)
         }
     } else if(ch == '\n') {
         if(spy->is_selecting) {
-            if(is_valid_channel_num(spy, spy->decode_index))
+            if(is_valid_channel_num(spy, spy->decode_index)) {
+                spy->decode_msg_info = get_current_msg_info(spy, &spy->decode_msg_channel);
                 spy->mode = MODE_DECODE;
+            }
             spy->is_selecting = 0; /* false */
         }
     } else if(ch == '\b' || ch == DEL_KEY) {
@@ -300,7 +308,7 @@ static void keyboard_handle_overview(spyinfo_t *spy, char ch)
 
 static void keyboard_handle_decode(spyinfo_t *spy, char ch)
 {
-    msg_info_t *minfo = get_current_msg_info(spy, NULL);
+    msg_info_t *minfo = spy->decode_msg_info;
     msg_display_state_t *ds = &minfo->disp_state;
 
     if(ch == ESCAPE_KEY) {
@@ -422,8 +430,9 @@ static void display_overview(spyinfo_t *spy)
 
 static void display_decode(spyinfo_t *spy)
 {
-    const char *channel;
-    msg_info_t *minfo = get_current_msg_info(spy, &channel);
+    msg_info_t *minfo = spy->decode_msg_info;
+    const char *channel = spy->decode_msg_channel;
+
     const char *typename = (minfo->metadata != NULL) ? minfo->metadata->typename : NULL;
     int64_t hash = (minfo->metadata != NULL) ? minfo->metadata->typeinfo->get_hash() : 0;
     printf("         Decoding %s (%s) %"PRIu64":\n", channel, typename, (uint64_t) hash);
