@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <stdarg.h>
 
+#define MAX_ARRAY_DISPLAY 100
+
 static inline int is_ascii(int8_t c)
 {
     return (32 <= c && c <= 126);
@@ -100,6 +102,10 @@ static void print_value_array(lcmtype_db_t *db, lcm_field_t *field, void *data, 
         size_t elt_size = typesize(field->type);
         void *p = (!field->dim_is_variable[0]) ? field->data : *(void **) field->data;
         for(int i = 0; i < len; i++) {
+            if(i == MAX_ARRAY_DISPLAY) {
+                printf("...more...");
+                break;
+            }
             print_value_scalar(db, field, p, usertype_count);
             if(i+1 != len)
                 printf(", ");
