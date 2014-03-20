@@ -60,7 +60,7 @@ static void print_value_scalar(lcmtype_db_t *db, lcm_field_t *field, void *data,
                     printf("<USER>");
                 } else {
                     int n = ++*usertype_count;
-                    printf("USER-ID: %d", n);
+                    printf("<%d>", n);
                 }
             }
             break;
@@ -232,7 +232,7 @@ void msg_display(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg
     for(int i = 0; i < num_fields; i++) {
         typeinfo->get_field(msg, i, &field);
 
-        printf("    %-15s %-15s ", field.name, field.typestr);
+        printf("    %-20.20s %-20.20s ", field.name, field.typestr);
 
         if(field.num_dim == 0)
             print_value_scalar(db, &field, field.data, &usertype_count);
