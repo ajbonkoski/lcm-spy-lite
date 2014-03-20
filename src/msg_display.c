@@ -5,7 +5,9 @@
 #include <assert.h>
 #include <stdarg.h>
 
+#define LINE_FMT_STR "    %-20.20s %-20.20s "
 #define MAX_ARRAY_DISPLAY 100
+#define MAX_ARRAY_ELT_PER_LINE 10
 
 static inline int is_ascii(int8_t c)
 {
@@ -102,6 +104,9 @@ static void print_value_array(lcmtype_db_t *db, lcm_field_t *field, void *data, 
         size_t elt_size = typesize(field->type);
         void *p = (!field->dim_is_variable[0]) ? field->data : *(void **) field->data;
         for(int i = 0; i < len; i++) {
+            if(i != 0 && i % MAX_ARRAY_ELT_PER_LINE == 0) {
+                printf("\n" LINE_FMT_STR " ", "", "");
+            }
             if(i == MAX_ARRAY_DISPLAY) {
                 printf("...more...");
                 break;
@@ -234,7 +239,7 @@ void msg_display(lcmtype_db_t *db, const lcmtype_metadata_t *metadata, void *msg
     for(int i = 0; i < num_fields; i++) {
         typeinfo->get_field(msg, i, &field);
 
-        printf("    %-20.20s %-20.20s ", field.name, field.typestr);
+        printf(LINE_FMT_STR, field.name, field.typestr);
 
         if(field.num_dim == 0)
             print_value_scalar(db, &field, field.data, &usertype_count);
